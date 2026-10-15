@@ -37,26 +37,43 @@
 q3000/mt7981-ikuai-q3000.dts         # Q3000 设备树（按论坛帖子整理）
 q3000/patch_q3000.py                 # 自动补丁脚本：把设备树、设备定义、
                                      # LED、网络脚本打到源码树上
-q3000/q3000.config                   # 编译配置种子（目标、设备、软件包）
+q3000/q3000-overlay.config           # 配置叠加层：Q3000 设备选择 + LuCI 中文
 ```
+
+## 配置说明
+
+工作流的配置分两步（与 [官方编译说明](https://cmi.hanwckf.top/p/immortalwrt-mt798x/)
+一致）：
+
+1. `cp -f defconfig/mt7981-ax3000.config .config` —— 采用源码自带的官方
+   mt7981 配置模板，里面已经包含了正确的 WARP 驱动版本（`WARP_VERSION=2` /
+   `WARP_CHIPSET="mt7981"`）、原厂 WiFi 驱动、HNAT、LuCI 等，不用自己从零拼。
+2. 追加 `q3000/q3000-overlay.config` —— 只放 Q3000 相关的增量：
+   设备选择（`DEVICE_ikuai_q3000`）和 LuCI 中文语言包。
 
 ## 自定义配置
 
-想增减软件包时，编辑 `q3000/q3000.config`，按 OpenWrt `.config` 语法加行，
-例如：
+想增减软件包时，编辑 `q3000/q3000-overlay.config`，按 OpenWrt `.config`
+语法加行（后写的会覆盖模板里的同名项），例如：
 
 ```
-CONFIG_PACKAGE_luci-app-firewall=y
 CONFIG_PACKAGE_htop=y
 ```
 
-然后 push，重新 Run workflow 即可。注意 `make defconfig` 会自动补全依赖，
-比如选了 `kmod-mt_wifi` 会自动带上 `kmod-mediatek_hnat`。
+然后 push，重新 Run workflow 即可。注意不要删掉文件里已有的 Q3000 设备
+选择行；WARP 驱动版本等底层配置由官方模板
+（`defconfig/mt7981-ax3000.config`）保证正确，不需要动。
 
 ## 常见问题
 
 - **构建失败怎么办**：点进那次失败的 workflow run，看 **Build firmware**
   这一步的日志，末尾一般会指出是哪个包编不过。也可以把日志贴出来分析。
+- **配置从哪来**：不要从零手写 `.config`。用源码自带的官方模板
+  （如 mt7981 用 `defconfig/mt7981-ax3000.config`），`cp` 为 `.config`
+  后再把设备相关的增量配置追加成一个 overlay 文件，最后 `make defconfig`。
+  模板里已经包含了正确的驱动版本等底层配置，手写容易踩坑（实测教训：
+  warp 驱动的 `WARP_VERSION`/`WARP_CHIPSET` 在 mt7981 上没有正确默认值，
+  手写配置时误用了 mt7622/mt7988 的值导致整包编译失败）。
 - **想固定源码版本**：默认每次都拉 `openwrt-21.02` 分支最新代码。
   如需锁定某次提交，把 workflow 里 `git clone --depth 1 -b ...` 改成先完整
   clone 再 `git checkout <commit>`。

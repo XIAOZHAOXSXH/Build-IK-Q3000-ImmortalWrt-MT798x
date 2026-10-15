@@ -17,6 +17,9 @@ env:
   REPO_BRANCH: openwrt-21.02
   TZ: Asia/Shanghai
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -56,17 +59,26 @@ jobs:
       - name: Load configuration
         run: |
           cd openwrt
-          cp "$GITHUB_WORKSPACE/q3000/q3000.config" .config
+          # 官方 mt7981 配置模板（含正确的 WARP 版本、WiFi 驱动、LuCI 等）
+          cp -f defconfig/mt7981-ax3000.config .config
+          # 叠加 Q3000 设备支持
+          cat "$GITHUB_WORKSPACE/q3000/q3000-overlay.config" >> .config
           make defconfig
-          grep -E 'DEVICE_ikuai_q3000=|kmod-mt_wifi=|kmod-mediatek_hnat=|CONFIG_PACKAGE_luci=' .config
+          grep -E 'ikuai_q3000|WARP_VERSION|WARP_CHIPSET' .config
 
       - name: Build firmware
         run: |
           cd openwrt
           make -j$(nproc) || make -j1 || make -j1 V=s
 
-      - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish firmware to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ikuai-q3000-firmware
-          path: openwrt/bin/targets/mediatek/mt7981/*q3000*.bin
+          tag_name: q3000-build-${{ github.run_number }}
+          name: iKuai Q3000 firmware (build ${{ github.run_number }})
+          body: |
+            immortalwrt-mt798x (`openwrt-21.02`) firmware for iKuai Q3000,
+            built from commit `${{ github.sha }}` of the patch repo.
+            - `*factory.bin` — flash via U-Boot web recovery (192.168.1.1)
+            - `*sysupgrade.bin` — upgrade from LuCI / sysupgrade
+          files: openwrt/bin/targets/mediatek/mt7981/*q3000*.bin
