@@ -16,6 +16,13 @@ def patch(path, anchor, addition, before=False):
     open(path, 'w').write(s)
     print('patched: ' + path)
 
+def sub(path, old, new):
+    s = open(path).read()
+    assert old in s, 'pattern not found in ' + path
+    s = s.replace(old, new, 1)
+    open(path, 'w').write(s)
+    print('patched: ' + path)
+
 def main():
     # 1. Device tree
     dst = 'target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7981-ikuai-q3000.dts'
@@ -75,6 +82,36 @@ def main():
           '\t\tlan_mac=$(macaddr_add $wan_mac 1)\n'
           '\t\t;;\n',
           before=True)
+
+    # 5. First-boot customizations (runs once on first boot, after
+    #    config_generate; only the intended values are touched)
+    uci_defaults = (
+        '#!/bin/sh\n'
+        '# iKuai Q3000 first-boot customizations\n'
+        '\n'
+        '# Default LAN IP -> 192.168.6.1 (netmask left untouched)\n'
+        "uci set network.lan.ipaddr='192.168.6.1'\n"
+        'uci commit network\n'
+        '\n'
+        '# Hostname -> XZ-WRT\n'
+        "uci set system.@system[0].hostname='XZ-WRT'\n"
+        'uci commit system\n'
+        '\n'
+        '# Default LuCI theme -> argon\n'
+        "uci set luci.main.mediaurlbase='/luci-static/argon'\n"
+        'uci commit luci\n'
+        '\n'
+        'exit 0\n'
+    )
+    dst = 'package/base-files/files/etc/uci-defaults/99-q3000-custom'
+    open(dst, 'w').write(uci_defaults)
+    os.chmod(dst, 0o755)
+    print('installed: ' + dst)
+
+    # 6. Firmware version string shown in LuCI ("固件版本")
+    sub('package/base-files/files/etc/openwrt_release',
+        "DISTRIB_DESCRIPTION='%D %V %C'",
+        "DISTRIB_DESCRIPTION='Power By 小赵先生'")
 
     print('ALL Q3000 PATCHES APPLIED')
 
